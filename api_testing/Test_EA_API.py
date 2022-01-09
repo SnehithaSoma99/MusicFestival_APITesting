@@ -64,6 +64,7 @@ class Test_ea_api:
         assert len(data) == len(band_list), "All  musical Festivals  do not have bands"
 
     # @pytest.mark.skip
+    #Test 5 - Verifying the number of bands as expected in the response
     def test_No_of_bands_in_each_music_Festivals(self,setup):
         self.response = setup
         print(f"API Response code {self.response.status_code}")
