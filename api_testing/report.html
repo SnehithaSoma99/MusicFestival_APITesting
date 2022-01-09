@@ -1,0 +1,342 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8"/>
+    <title>Test Report</title>
+    <link href="assets/style.css" rel="stylesheet" type="text/css"/></head>
+  <body onLoad="init()">
+    <script>/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this file,
+ * You can obtain one at http://mozilla.org/MPL/2.0/. */
+
+
+function toArray(iter) {
+    if (iter === null) {
+        return null;
+    }
+    return Array.prototype.slice.call(iter);
+}
+
+function find(selector, elem) { // eslint-disable-line no-redeclare
+    if (!elem) {
+        elem = document;
+    }
+    return elem.querySelector(selector);
+}
+
+function findAll(selector, elem) {
+    if (!elem) {
+        elem = document;
+    }
+    return toArray(elem.querySelectorAll(selector));
+}
+
+function sortColumn(elem) {
+    toggleSortStates(elem);
+    const colIndex = toArray(elem.parentNode.childNodes).indexOf(elem);
+    let key;
+    if (elem.classList.contains('result')) {
+        key = keyResult;
+    } else if (elem.classList.contains('links')) {
+        key = keyLink;
+    } else {
+        key = keyAlpha;
+    }
+    sortTable(elem, key(colIndex));
+}
+
+function showAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(showExtras);
+}
+
+function hideAllExtras() { // eslint-disable-line no-unused-vars
+    findAll('.col-result').forEach(hideExtras);
+}
+
+function showExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.remove('collapsed');
+    expandcollapse.classList.remove('expander');
+    expandcollapse.classList.add('collapser');
+}
+
+function hideExtras(colresultElem) {
+    const extras = colresultElem.parentNode.nextElementSibling;
+    const expandcollapse = colresultElem.firstElementChild;
+    extras.classList.add('collapsed');
+    expandcollapse.classList.remove('collapser');
+    expandcollapse.classList.add('expander');
+}
+
+function showFilters() {
+    const filterItems = document.getElementsByClassName('filter');
+    for (let i = 0; i < filterItems.length; i++)
+        filterItems[i].hidden = false;
+}
+
+function addCollapse() {
+    // Add links for show/hide all
+    const resulttable = find('table#results-table');
+    const showhideall = document.createElement('p');
+    showhideall.innerHTML = '<a href="javascript:showAllExtras()">Show all details</a> / ' +
+                            '<a href="javascript:hideAllExtras()">Hide all details</a>';
+    resulttable.parentElement.insertBefore(showhideall, resulttable);
+
+    // Add show/hide link to each result
+    findAll('.col-result').forEach(function(elem) {
+        const collapsed = getQueryParameter('collapsed') || 'Passed';
+        const extras = elem.parentNode.nextElementSibling;
+        const expandcollapse = document.createElement('span');
+        if (extras.classList.contains('collapsed')) {
+            expandcollapse.classList.add('expander');
+        } else if (collapsed.includes(elem.innerHTML)) {
+            extras.classList.add('collapsed');
+            expandcollapse.classList.add('expander');
+        } else {
+            expandcollapse.classList.add('collapser');
+        }
+        elem.appendChild(expandcollapse);
+
+        elem.addEventListener('click', function(event) {
+            if (event.currentTarget.parentNode.nextElementSibling.classList.contains('collapsed')) {
+                showExtras(event.currentTarget);
+            } else {
+                hideExtras(event.currentTarget);
+            }
+        });
+    });
+}
+
+function getQueryParameter(name) {
+    const match = RegExp('[?&]' + name + '=([^&]*)').exec(window.location.search);
+    return match && decodeURIComponent(match[1].replace(/\+/g, ' '));
+}
+
+function init () { // eslint-disable-line no-unused-vars
+    resetSortHeaders();
+
+    addCollapse();
+
+    showFilters();
+
+    sortColumn(find('.initial-sort'));
+
+    findAll('.sortable').forEach(function(elem) {
+        elem.addEventListener('click',
+            function() {
+                sortColumn(elem);
+            }, false);
+    });
+}
+
+function sortTable(clicked, keyFunc) {
+    const rows = findAll('.results-table-row');
+    const reversed = !clicked.classList.contains('asc');
+    const sortedRows = sort(rows, keyFunc, reversed);
+    /* Whole table is removed here because browsers acts much slower
+     * when appending existing elements.
+     */
+    const thead = document.getElementById('results-table-head');
+    document.getElementById('results-table').remove();
+    const parent = document.createElement('table');
+    parent.id = 'results-table';
+    parent.appendChild(thead);
+    sortedRows.forEach(function(elem) {
+        parent.appendChild(elem);
+    });
+    document.getElementsByTagName('BODY')[0].appendChild(parent);
+}
+
+function sort(items, keyFunc, reversed) {
+    const sortArray = items.map(function(item, i) {
+        return [keyFunc(item), i];
+    });
+
+    sortArray.sort(function(a, b) {
+        const keyA = a[0];
+        const keyB = b[0];
+
+        if (keyA == keyB) return 0;
+
+        if (reversed) {
+            return keyA < keyB ? 1 : -1;
+        } else {
+            return keyA > keyB ? 1 : -1;
+        }
+    });
+
+    return sortArray.map(function(item) {
+        const index = item[1];
+        return items[index];
+    });
+}
+
+function keyAlpha(colIndex) {
+    return function(elem) {
+        return elem.childNodes[1].childNodes[colIndex].firstChild.data.toLowerCase();
+    };
+}
+
+function keyLink(colIndex) {
+    return function(elem) {
+        const dataCell = elem.childNodes[1].childNodes[colIndex].firstChild;
+        return dataCell == null ? '' : dataCell.innerText.toLowerCase();
+    };
+}
+
+function keyResult(colIndex) {
+    return function(elem) {
+        const strings = ['Error', 'Failed', 'Rerun', 'XFailed', 'XPassed',
+            'Skipped', 'Passed'];
+        return strings.indexOf(elem.childNodes[1].childNodes[colIndex].firstChild.data);
+    };
+}
+
+function resetSortHeaders() {
+    findAll('.sort-icon').forEach(function(elem) {
+        elem.parentNode.removeChild(elem);
+    });
+    findAll('.sortable').forEach(function(elem) {
+        const icon = document.createElement('div');
+        icon.className = 'sort-icon';
+        icon.textContent = 'vvv';
+        elem.insertBefore(icon, elem.firstChild);
+        elem.classList.remove('desc', 'active');
+        elem.classList.add('asc', 'inactive');
+    });
+}
+
+function toggleSortStates(elem) {
+    //if active, toggle between asc and desc
+    if (elem.classList.contains('active')) {
+        elem.classList.toggle('asc');
+        elem.classList.toggle('desc');
+    }
+
+    //if inactive, reset all other functions and add ascending active
+    if (elem.classList.contains('inactive')) {
+        resetSortHeaders();
+        elem.classList.remove('inactive');
+        elem.classList.add('active');
+    }
+}
+
+function isAllRowsHidden(value) {
+    return value.hidden == false;
+}
+
+function filterTable(elem) { // eslint-disable-line no-unused-vars
+    const outcomeAtt = 'data-test-result';
+    const outcome = elem.getAttribute(outcomeAtt);
+    const classOutcome = outcome + ' results-table-row';
+    const outcomeRows = document.getElementsByClassName(classOutcome);
+
+    for(let i = 0; i < outcomeRows.length; i++){
+        outcomeRows[i].hidden = !elem.checked;
+    }
+
+    const rows = findAll('.results-table-row').filter(isAllRowsHidden);
+    const allRowsHidden = rows.length == 0 ? true : false;
+    const notFoundMessage = document.getElementById('not-found-message');
+    notFoundMessage.hidden = !allRowsHidden;
+}
+</script>
+    <h1>report.html</h1>
+    <p>Report generated on 10-Jan-2022 at 04:47:48 by <a href="https://pypi.python.org/pypi/pytest-html">pytest-html</a> v3.1.1</p>
+    <h2>Environment</h2>
+    <table id="environment">
+      <tr>
+        <td>Packages</td>
+        <td>{"pluggy": "0.13.1", "py": "1.9.0", "pytest": "6.2.5"}</td></tr>
+      <tr>
+        <td>Platform</td>
+        <td>Windows-10-10.0.19041-SP0</td></tr>
+      <tr>
+        <td>Plugins</td>
+        <td>{"html": "3.1.1", "metadata": "1.11.0"}</td></tr>
+      <tr>
+        <td>Python</td>
+        <td>3.8.5</td></tr></table>
+    <h2>Summary</h2>
+    <p>5 tests ran in 0.90 seconds. </p>
+    <p class="filter" hidden="true">(Un)check the boxes to filter the results.</p><input checked="true" class="filter" data-test-result="passed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="passed">3 passed</span>, <input checked="true" class="filter" data-test-result="skipped" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="skipped">0 skipped</span>, <input checked="true" class="filter" data-test-result="failed" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="failed">2 failed</span>, <input checked="true" class="filter" data-test-result="error" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="error">0 errors</span>, <input checked="true" class="filter" data-test-result="xfailed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xfailed">0 expected failures</span>, <input checked="true" class="filter" data-test-result="xpassed" disabled="true" hidden="true" name="filter_checkbox" onChange="filterTable(this)" type="checkbox"/><span class="xpassed">0 unexpected passes</span>
+    <h2>Results</h2>
+    <table id="results-table">
+      <thead id="results-table-head">
+        <tr>
+          <th class="sortable result initial-sort" col="result">Result</th>
+          <th class="sortable" col="name">Test</th>
+          <th class="sortable" col="duration">Duration</th>
+          <th class="sortable links" col="links">Links</th></tr>
+        <tr hidden="true" id="not-found-message">
+          <th colspan="4">No results found. Try to check the filters</th></tr></thead>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">Test_EA_API.py::Test_ea_api::test_music_festival_names</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;api_testing.Test_EA_API.Test_ea_api object at 0x00000261677E9340&gt;, setup = &lt;Response [200]&gt;<br/><br/>    def test_music_festival_names(self, setup):<br/>        # Test 3 - Verify all music festival names:<br/>        self.response = setup<br/>        print(f&quot;API Response code {self.response.status_code}&quot;)<br/>        data = self.response.json()<br/>        if len(data)==0:<br/>            assert False, &quot;Empty response received from the API&quot;<br/>        print(&quot;----API Response---&quot;)<br/>        print(data)<br/>        print(&quot;------------------&quot;)<br/>        temp_list = []<br/>        print(f&quot;Total no of musical festivals {len(data)}&quot;)<br/>        for val in range(0, len(data)):<br/>            if &#x27;name&#x27; in data[val]:<br/>                temp_list.append(data[val][&#x27;name&#x27;])<br/>        print(f&quot;No of musical festivals which has name : {len(temp_list)}&quot;)<br/>&gt;       assert len(data) ==len(temp_list), &quot;All Musical Festivals do not have names&quot;<br/><span class="error">E       AssertionError: All Musical Festivals do not have names</span><br/><span class="error">E       assert 5 == 4</span><br/><span class="error">E         +5</span><br/><span class="error">E         -4</span><br/><br/>Test_EA_API.py:44: AssertionError<br/> ------------------------------Captured stdout call------------------------------ <br/>API Response code 200
+----API Response---
+[{&#x27;name&#x27;: &#x27;LOL-palooza&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Winter Primates&#x27;, &#x27;recordLabel&#x27;: &#x27;&#x27;}, {&#x27;name&#x27;: &#x27;Werewolf Weekday&#x27;, &#x27;recordLabel&#x27;: &#x27;XS Recordings&#x27;}, {&#x27;name&#x27;: &#x27;Frank Jupiter&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}, {&#x27;name&#x27;: &#x27;Jill Black&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}]}, {&#x27;name&#x27;: &#x27;Small Night In&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Yanke East&#x27;, &#x27;recordLabel&#x27;: &#x27;MEDIOCRE Music&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;The Black Dashes&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Green Mild Cold Capsicum&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}]}, {&#x27;name&#x27;: &#x27;Trainerella&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Adrian Venti&#x27;, &#x27;recordLabel&#x27;: &#x27;Monocracy Records&#x27;}, {&#x27;name&#x27;: &#x27;Manish Ditch&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;YOUKRANE&#x27;, &#x27;recordLabel&#x27;: &#x27;Anti Records&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Still Bottom Records&#x27;}]}, {&#x27;name&#x27;: &#x27;Twisted Tour&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Summon&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Auditones&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;}]}, {&#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Critter Girls&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Propeller&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}]}]
+------------------
+Total no of musical festivals 5
+No of musical festivals which has name : 4
+<br/></div></td></tr></tbody>
+      <tbody class="failed results-table-row">
+        <tr>
+          <td class="col-result">Failed</td>
+          <td class="col-name">Test_EA_API.py::Test_ea_api::test_No_of_bands_in_each_music_Festivals</td>
+          <td class="col-duration">0.09</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log">self = &lt;api_testing.Test_EA_API.Test_ea_api object at 0x00000261677DF640&gt;, setup = &lt;Response [200]&gt;<br/><br/>    def test_No_of_bands_in_each_music_Festivals(self,setup):<br/>        self.response = setup<br/>        print(f&quot;API Response code {self.response.status_code}&quot;)<br/>        data = self.response.json()<br/>        if len(data)==0:<br/>            assert False, &quot;Empty response received from the API&quot;<br/>        print(&quot;----API Response---&quot;)<br/>        print(data)<br/>        print(&quot;------------------&quot;)<br/>        exepected_bands_in_each_music_festivals = {<br/>            &quot;LOL-palooza&quot;: 4,<br/>            &quot;Small Night In&quot;: 5,<br/>            &quot;Trainerella&quot;: 4,<br/>            &quot;Twisted Tour&quot;: 3,<br/>            &quot;&quot;: 2<br/>        }<br/>        actual_bands_in_each_music_festivals = {}<br/>        for val in range(0, len(data)):<br/>            if &#x27;bands&#x27; in data[val]:<br/>                if &#x27;name&#x27; in data[val]:<br/>                    actual_bands_in_each_music_festivals[data[val][&#x27;name&#x27;]] = len(data[val][&#x27;bands&#x27;])<br/>                else:<br/>                    actual_bands_in_each_music_festivals[&#x27;&#x27;] = len(data[val][&#x27;bands&#x27;])<br/>    <br/>        print(actual_bands_in_each_music_festivals)<br/>&gt;       assert actual_bands_in_each_music_festivals.__eq__(exepected_bands_in_each_music_festivals), &quot;Expected No of Music bands in the music festivals are mot matching&quot;<br/><span class="error">E       AssertionError: Expected No of Music bands in the music festivals are mot matching</span><br/><span class="error">E       assert False</span><br/><span class="error">E        +  where False = &lt;method-wrapper &#x27;__eq__&#x27; of dict object at 0x0000026167858E00&gt;({&#x27;&#x27;: 2, &#x27;LOL-palooza&#x27;: 4, &#x27;Small Night In&#x27;: 5, &#x27;Trainerella&#x27;: 4, ...})</span><br/><span class="error">E        +    where &lt;method-wrapper &#x27;__eq__&#x27; of dict object at 0x0000026167858E00&gt; = {&#x27;&#x27;: 2, &#x27;Small Night In&#x27;: 5, &#x27;Twisted Tour&#x27;: 3}.__eq__</span><br/><br/>Test_EA_API.py:92: AssertionError<br/> ------------------------------Captured stdout call------------------------------ <br/>API Response code 200
+----API Response---
+[{&#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Critter Girls&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Propeller&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}]}, {&#x27;name&#x27;: &#x27;Twisted Tour&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Summon&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Auditones&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;}]}, {&#x27;name&#x27;: &#x27;Small Night In&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Squint-281&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;The Black Dashes&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Green Mild Cold Capsicum&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Yanke East&#x27;, &#x27;recordLabel&#x27;: &#x27;MEDIOCRE Music&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}]}]
+------------------
+{&#x27;&#x27;: 2, &#x27;Twisted Tour&#x27;: 3, &#x27;Small Night In&#x27;: 5}
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Test_EA_API.py::Test_ea_api::test_api_responseCode_success</td>
+          <td class="col-duration">0.34</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>API Response code 200
+[{&#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Critter Girls&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Propeller&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}]}, {&#x27;name&#x27;: &#x27;Twisted Tour&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Summon&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Auditones&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;}]}, {&#x27;name&#x27;: &#x27;Small Night In&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;The Black Dashes&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Yanke East&#x27;, &#x27;recordLabel&#x27;: &#x27;MEDIOCRE Music&#x27;}, {&#x27;name&#x27;: &#x27;Green Mild Cold Capsicum&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}]}, {&#x27;name&#x27;: &#x27;LOL-palooza&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Winter Primates&#x27;, &#x27;recordLabel&#x27;: &#x27;&#x27;}, {&#x27;name&#x27;: &#x27;Frank Jupiter&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}, {&#x27;name&#x27;: &#x27;Jill Black&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Werewolf Weekday&#x27;, &#x27;recordLabel&#x27;: &#x27;XS Recordings&#x27;}]}, {&#x27;name&#x27;: &#x27;Trainerella&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Still Bottom Records&#x27;}, {&#x27;name&#x27;: &#x27;Manish Ditch&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Adrian Venti&#x27;, &#x27;recordLabel&#x27;: &#x27;Monocracy Records&#x27;}, {&#x27;name&#x27;: &#x27;YOUKRANE&#x27;, &#x27;recordLabel&#x27;: &#x27;Anti Records&#x27;}]}]
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Test_EA_API.py::Test_ea_api::test_No_of_musicFestivals</td>
+          <td class="col-duration">0.10</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>API Response code 200
+----API Response---
+[{&#x27;name&#x27;: &#x27;Trainerella&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Still Bottom Records&#x27;}, {&#x27;name&#x27;: &#x27;Manish Ditch&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Adrian Venti&#x27;, &#x27;recordLabel&#x27;: &#x27;Monocracy Records&#x27;}, {&#x27;name&#x27;: &#x27;YOUKRANE&#x27;, &#x27;recordLabel&#x27;: &#x27;Anti Records&#x27;}]}, {&#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Critter Girls&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Propeller&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}]}, {&#x27;name&#x27;: &#x27;LOL-palooza&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Winter Primates&#x27;, &#x27;recordLabel&#x27;: &#x27;&#x27;}, {&#x27;name&#x27;: &#x27;Frank Jupiter&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}, {&#x27;name&#x27;: &#x27;Jill Black&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Werewolf Weekday&#x27;, &#x27;recordLabel&#x27;: &#x27;XS Recordings&#x27;}]}, {&#x27;name&#x27;: &#x27;Small Night In&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Squint-281&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;The Black Dashes&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Green Mild Cold Capsicum&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Yanke East&#x27;, &#x27;recordLabel&#x27;: &#x27;MEDIOCRE Music&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}]}, {&#x27;name&#x27;: &#x27;Twisted Tour&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Summon&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;Auditones&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Squint-281&#x27;}]}]
+------------------
+test_No_of_musicFestivals 5
+<br/></div></td></tr></tbody>
+      <tbody class="passed results-table-row">
+        <tr>
+          <td class="col-result">Passed</td>
+          <td class="col-name">Test_EA_API.py::Test_ea_api::test_bands</td>
+          <td class="col-duration">0.08</td>
+          <td class="col-links"></td></tr>
+        <tr>
+          <td class="extra" colspan="4">
+            <div class="log"> ------------------------------Captured stdout call------------------------------ <br/>API Response code 200
+----API Response---
+[{&#x27;name&#x27;: &#x27;Small Night In&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Squint-281&#x27;, &#x27;recordLabel&#x27;: &#x27;Outerscope&#x27;}, {&#x27;name&#x27;: &#x27;The Black Dashes&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Green Mild Cold Capsicum&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}, {&#x27;name&#x27;: &#x27;Yanke East&#x27;, &#x27;recordLabel&#x27;: &#x27;MEDIOCRE Music&#x27;}, {&#x27;name&#x27;: &#x27;Wild Antelope&#x27;, &#x27;recordLabel&#x27;: &#x27;Marner Sis. Recording&#x27;}]}, {&#x27;name&#x27;: &#x27;LOL-palooza&#x27;, &#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Winter Primates&#x27;, &#x27;recordLabel&#x27;: &#x27;&#x27;}, {&#x27;name&#x27;: &#x27;Frank Jupiter&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}, {&#x27;name&#x27;: &#x27;Jill Black&#x27;, &#x27;recordLabel&#x27;: &#x27;Fourth Woman Records&#x27;}, {&#x27;name&#x27;: &#x27;Werewolf Weekday&#x27;, &#x27;recordLabel&#x27;: &#x27;XS Recordings&#x27;}]}, {&#x27;bands&#x27;: [{&#x27;name&#x27;: &#x27;Critter Girls&#x27;, &#x27;recordLabel&#x27;: &#x27;ACR&#x27;}, {&#x27;name&#x27;: &#x27;Propeller&#x27;, &#x27;recordLabel&#x27;: &#x27;Pacific Records&#x27;}]}]
+------------------
+Total no of musical festivals 3
+No of musical festivals which has name : 3
+<br/></div></td></tr></tbody></table></body></html>
